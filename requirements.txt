@@ -1,0 +1,14 @@
+torch
+fair-esm
+transformers
+pymoo
+scikit-learn
+pandas
+numpy
+matplotlib
+seaborn
+scipy
+biopython
+pyyaml
+tqdm
+joblib
