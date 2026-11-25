@@ -43,8 +43,7 @@ print("\nvirus shape:", viruses.shape)
 print("virus columns:", list(viruses.columns))
 
 
-# column names in catnap are not super consistent between snapshots so just
-# grab the first one that matches instead of hardcoding and praying
+# column names in catnap are not super consistent between snapshots so just grab the first one that matches instead of hardcoding and praying
 def pick_col(df, candidates, label):
     for c in candidates:
         if c in df.columns:
@@ -123,10 +122,10 @@ assay.loc[
     "cutoff_status"
 ] = "above_cutoff"
 
-print("\nIC50 BREAKDOWN")
+print("\nIC50 breakdown")
 print(assay["censor_direction"].value_counts())
 
-print("\n CUTOFF BREAKDOWN")
+print("\n CUTOFF breakdown")
 print(assay["cutoff_status"].value_counts())
 
 print("\nexact pIC50 range:",
@@ -147,20 +146,39 @@ year_col = pick_col(viruses, ["Year", "year", "collection_year"], "year")
 print(f"\nvirus meta cols -> key='{virus_key}' subtype='{subtype_col}' year='{year_col}'")
 
 virus_meta = viruses[[virus_key, subtype_col, year_col]].copy()
-virus_meta.columns = ["virus", "subtype", "year"]
+virus_meta.columns = ["virus", "clade", "year"]
 
-# preserve the original subtype labels
-virus_meta["subtype"] = virus_meta["subtype"].astype("string").str.strip()
+# preserve the original CATNAP subtype labels
+virus_meta["virus"] = virus_meta["virus"].astype("string").str.strip()
+virus_meta["clade"] = virus_meta["clade"].astype("string").str.strip()
 virus_meta["year"] = pd.to_numeric(virus_meta["year"], errors="coerce")
 
+# check whether the same virus has conflicting metadata
+conflicts = (
+    virus_meta.groupby("virus")[["clade", "year"]]
+    .nunique(dropna=False)
+)
+
+conflicts = conflicts[(conflicts > 1).any(axis=1)]
+
+print("\nconflicting virus metadata:", len(conflicts))
+
+if len(conflicts) > 0:
+    print(conflicts.head(10))
+    raise ValueError("Some virus IDs have conflicting metadata. TODO: Check before continuing.")
+
+# remove exact duplicate metadata rows
 virus_meta = virus_meta.drop_duplicates(subset="virus")
 
-# attach virus metadata to every measurement
+# clean the virus IDs before merging
+assay[virus_col] = assay[virus_col].astype("string").str.strip()
+
 observations = assay.merge(
     virus_meta,
     left_on=virus_col,
     right_on="virus",
-    how="left"
+    how="left",
+    validate="many_to_one"
 )
 
 observations = observations.rename(columns={
@@ -168,21 +186,20 @@ observations = observations.rename(columns={
     virus_col: "virus_id"
 })
 
-# keep the original reference information too
-keep_cols = ["antibody_id","virus_id","IC50","ic50_original","ic50_boundary","censor_direction","is_exact","pIC50","cutoff_status","subtype","year"]
+# keep all measurements and their original reference information
+keep_cols = ["antibody_id","virus_id",ic50_col,"ic50_original","ic50_boundary","censor_direction","is_exact","pIC50","cutoff_status","clade","year"]
 
 for col in ["Reference", "Pubmed ID"]:
     if col in observations.columns:
         keep_cols.append(col)
 
-observations = observations[keep_cols]
+observations = observations[keep_cols].copy()
 
-print("\n Observation dataset")
+print("\nObservation dataset")
 print("shape:", observations.shape)
-print("missing subtype:", observations["subtype"].isna().sum())
+print("missing clade:", observations["clade"].isna().sum())
 print("missing year:", observations["year"].isna().sum())
 
-# save every measurement before aggregation
 observations.to_csv(
     out / "catnap_observations.csv",
     index=False
@@ -190,35 +207,63 @@ observations.to_csv(
 
 print("\nsaved observations to", out / "catnap_observations.csv")
 
-# use exact measurements for the initial training dataset
-exact_data = observations[observations["is_exact"]].copy()
+# use exact measurements within the 10 ug/mL cutoff for training
+exact_data = observations[
+    observations["cutoff_status"] == "included_exact"
+].copy()
 
+# combine repeated measurements for the same antibody-virus pair
 clean = (
     exact_data
     .groupby(["antibody_id", "virus_id"], as_index=False)
     .agg(
         pIC50=("pIC50", "mean"),
-        subtype=("subtype", "first"),
-        year=("year", "first"),
-        n_exact=("pIC50", "size")
+        clade=("clade", "first"),
+        year=("year", "first")
     )
 )
 
-print("\nExact only dataset")
-print("collapsed", len(exact_data), "measurements into", len(clean), "unique antibody-virus pairs")
+# these are exact measurements, so none are censored
+clean["censored"] = False
+print("\nMissing clade before filtering:", clean["clade"].isna().sum())
+
+before = len(clean)
+clean = clean.dropna(subset=["clade"]).copy()
+
+print("Dropped rows with missing clade:", before - len(clean))
+print("Remaining rows:", len(clean))
+
+# keep the columns in the order specified in the research plan
+clean = clean[
+    ["antibody_id", "virus_id", "pIC50", "censored", "clade", "year"]
+]
+
+print("\nExact-only training dataset")
+print(
+    "collapsed",
+    len(exact_data),
+    "measurements into",
+    before,
+    "unique antibody-virus pairs"
+)
+print("after removing missing clades:", len(clean))
 
 clean.to_csv(
     out / "catnap_clean.csv",
     index=False
 )
+assert clean["clade"].notna().all()
 
-print("\nsaved exact-only dataset to", out / "catnap_clean.csv")
+print("\nsaved training dataset to", out / "catnap_clean.csv")
 
 print("\nunique antibodies:", clean["antibody_id"].nunique())
 print("unique viruses:", clean["virus_id"].nunique())
 
-print("\nsubtype distribution:")
-print(clean.drop_duplicates("virus_id")["subtype"].value_counts().head(20))
+print("\nclade distribution:")
+print(clean.drop_duplicates("virus_id")["clade"].value_counts().head(20))
 
-print("\nexact pIC50 statistics:")
+print("\npIC50 statistics:")
 print(clean["pIC50"].describe())
+
+print("\nfinal columns:")
+print(list(clean.columns))

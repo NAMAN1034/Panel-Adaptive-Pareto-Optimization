@@ -1,4 +1,4 @@
-antibody_id,virus_id,IC50,ic50_original,ic50_boundary,censor_direction,is_exact,pIC50,cutoff_status,subtype,year,Reference,Pubmed ID
+antibody_id,virus_id,IC50,ic50_original,ic50_boundary,censor_direction,is_exact,pIC50,cutoff_status,clade,year,Reference,Pubmed ID
 0.5gamma,6535_3,0.3,0.3,0.3,none,True,8.698878745280338,included_exact,B,1995.0,Ramirez Valdez et al. Virology 475:187 (2015),25486586.0
 0.5gamma,700010040_C9_4520,>150,>150,150.0,right,False,,above_cutoff,B,2006.0,Ramirez Valdez et al. Virology 475:187 (2015),25486586.0
 0.5gamma,700010058_A4_4375,>150,>150,150.0,right,False,,above_cutoff,B,2006.0,Ramirez Valdez et al. Virology 475:187 (2015),25486586.0
