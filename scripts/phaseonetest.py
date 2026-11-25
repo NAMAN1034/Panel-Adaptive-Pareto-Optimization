@@ -2,7 +2,7 @@ import platform
 import sys
 import os
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 print("Python:", sys.version.split()[0])
 print("Platform:", platform.platform())
