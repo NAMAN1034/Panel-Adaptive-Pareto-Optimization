@@ -230,3 +230,5 @@ print(f"train antibodies: {len(ab_train)}")
 print(f"held-out antibodies: {len(ab_test)}")
 print(f"train viruses: {len(virus_train)}")
 print(f"held-out viruses: {len(virus_test)}")
+
+#ChatGPT was used to help write the antibody classification function in this script. The function was written based on the VRC01-class antibody patterns and lineage information provided in the comments.
