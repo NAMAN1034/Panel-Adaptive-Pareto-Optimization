@@ -14,6 +14,7 @@ from Bio import AlignIO
 
 from src.utils.seeding import seed_everything
 
+AA_ORDER = "ACDEFGHIKLMNPQRSTVWY"
 
 seed_everything(0)
 
@@ -81,12 +82,11 @@ print(f"first few: {epitope_cols[:5]} ... last few: {epitope_cols[-5:]}")
 
 # lanl fasta headers usually look like: >B.US.1998.SOMENAME or >C.ZA.2003 so the subtype is the first letter after the >
 def get_subtype(seq_id):
-    first = seq_id.split(".")[0] if "." in seq_id else seq_id
-    # sometimes its like "B" or "B_123" so just grab the first alpha char
-    for ch in first:
-        if ch.isalpha():
-            return ch.upper()
-    return "?"
+    first = seq_id.split(".")[0].strip()
+    # only accept exact "B" or "C". anything with _ or extra letters is a CRF or unique recombinant (BF1, 07_BC, BC, CD, etc) and gets rejected. subtype B and C are single lineages so there are no "B1", "B2" etc.
+    if first in ("B", "C"):
+        return first
+    return "other"
 
 subtypes = [get_subtype(rec.id) for rec in aln]
 subtype_counts = pd.Series(subtypes).value_counts()
@@ -116,8 +116,9 @@ for i in keep_idx:
 
     # also drop sequences with stop codons or weird chars
     bad_chars = set("X*BZJ")
-    has_bad = any(ch in bad_chars for ch in epi)
-
+    valid_chars = set(AA_ORDER) | {"-"}
+    has_bad = any(ch not in valid_chars for ch in epi)
+    
     records.append({
         "seq_id": rec.id,
         "subtype": get_subtype(rec.id),
@@ -218,6 +219,18 @@ for st in ["B", "C"]:
                 top_freq = row.max()
                 print(f"    pos {pos}: {top_aa} ({top_freq:.2f})")
 
+# save the epitope -> hxb2 mapping so module 4.3 can translate positions later
+mapping_rows = []
+for epitope_pos, col in enumerate(epitope_cols, start=1):
+    mapping_rows.append({
+        "epitope_pos": epitope_pos,
+        "alignment_col": col,
+        "hxb2_pos": hxb2_map[col],
+    })
+
+mapping_df = pd.DataFrame(mapping_rows)
+mapping_df.to_csv(out / "lanl_epitope_to_hxb2.csv", index=False)
+print(f"saved epitope->hxb2 mapping to {out / 'lanl_epitope_to_hxb2.csv'}")
 
 # save combined metadata table
 meta_out = out / "lanl_epitope_metadata.csv"
