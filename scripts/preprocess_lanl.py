@@ -25,10 +25,8 @@ out.mkdir(parents=True, exist_ok=True)
 
 # find the alignment file. i saved it as .fasta yesterday
 aln_path = raw / "lanl_gp160_alignment.fasta"
-if not aln_path.exists():
-    raise FileNotFoundError(f"couldnt find {aln_path}. did you download the lanl alignment?")
 
-print("loading alignment... (might take a sec if its big)")
+print("loading alignment...")
 aln = AlignIO.read(aln_path, "fasta")
 print("alignment shape:", len(aln), "sequences x", aln.get_alignment_length(), "columns")
 
