@@ -1,0 +1,11 @@
+# Trained models
+cache/models/
+*.joblib
+
+# Generated caches
+cache/
+__pycache__/
+*.pyc
+
+# Mac files
+.DS_Store
